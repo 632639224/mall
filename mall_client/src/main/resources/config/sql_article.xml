@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="article">
+	<insert id="addArticle"  parameterType="hashmap">
+       insert into t_article(title,pic,content)values(#{title},#{pic},#{content})
+	</insert>
+	<update id="updateArticle"  parameterType="hashmap">
+      update t_article set title=#{title},pic=#{pic},content=#{content},update_time=#{updateTime} where id=#{articleId}
+	</update>
+	<delete id="deleteArticle"  parameterType="hashmap">
+	    delete from t_article where id=#{articleId}
+	</delete>
+	<select id="getPageListOfArticle" parameterType="hashmap" resultType="hashmap">
+	    select t.id "id" ,t.read_times "readTimes",t.title "title" ,t.pic "pic"  ,date_format(t.create_time,'%Y-%m-%d %H:%i:%s') "createTime",v.likeTotal,v.reportTotal,v.collectTotal,
+	    if(t1.id is null,0,1) isLike,if(t2.id is null,0,1) isCollect from 
+	    v_article_statis v, t_article t 
+	    left join t_article_like  t1 on t1.article_id=t.id and t1.user_id=#{loginUserId}
+	    left join t_article_collect t2 on t2.article_id=t.id and t2.user_id=#{loginUserId}
+	     where t.id=v.article_id 
+	    	<if test=" queryName != null and queryName != '' ">
+              and t.title like concat('%',#{queryName},'%')
+           </if>
+	    	<if test=" isLike =='1' or  isLike ==1 ">
+              and t1.id is not null
+           </if>
+	    	<if test=" isCollect =='1' or  isCollect ==1 ">
+              and t2.id is not null
+           </if>
+		<if test = "order == '' or order == null">
+			order by t.create_time desc
+		</if>
+		<if test = "order != '' and order != null">
+			order by
+			<if test="numOrder==1">
+				t.read_times desc
+				<if test="timeOrder==1">
+					,t.create_time  desc
+				</if>
+				<if test="timeOrder==2">
+					,t.create_time asc
+				</if>
+			</if>
+			<if test="numOrder==2">
+				<if test="timeOrder==1">
+					t.create_time  desc
+				</if>
+				<if test="timeOrder==2">
+					t.create_time asc
+				</if>
+			</if>
+		</if>
+	      <if test=" start != null and start != '' ">
+             limit ${start},${limit}
+           </if>
+           <if test=" pageStart != null and pageStart != '' ">
+             limit ${pageStart},${pageSize}
+           </if>
+	</select>
+	<select id="getArticleById" parameterType="hashmap" resultType="hashmap">
+	     select t.id "id" ,t.read_times "readTimes",t.read_times "readTimes",t.content "content",t.title "title" ,t.pic "pic"  ,date_format(t.create_time,'%Y-%m-%d %H:%i:%s') "createTime",v.likeTotal,v.reportTotal,v.collectTotal,
+	    if(t2.id is null,0,1) isCollect from
+	    v_article_statis v, t_article t
+	    left join t_article_like  t1 on t1.article_id=t.id and t1.user_id=#{userId}
+	    left join t_article_collect t2 on t2.article_id=t.id and t2.user_id=#{userId}
+	    where t.id=v.article_id and t.id = #{articleId}
+	</select>
+	<select id="getTotalOfArticle" parameterType="hashmap" resultType="integer">
+	    select count(*) from t_article t where 1=1 
+	    <if test=" queryName != null and queryName != '' ">
+              and title like concat('%',#{queryName},'%')
+         </if>
+	</select>
+	<insert id="addArticleLike"  parameterType="hashmap">
+        insert into t_article_like(user_id,article_id,create_time)values(#{userId},#{articleId},SYSDATE())
+	</insert>
+	<delete id="deleteArticleLike"  parameterType="hashmap">
+        delete from t_article_like where user_id=#{userId} and article_id=#{articleId}
+	</delete>
+	<insert id="addArticleReport"  parameterType="hashmap">
+       insert into t_article_report(user_id,article_id,content)values(#{userId},#{articleId},#{content})
+	</insert>
+	<select id="getArticleReportList" parameterType="hashmap" resultType="hashmap">
+		SELECT
+		t.id "id",
+		t.user_id "userId",
+		IF (SUBSTRING(t.user_id, 1, 2) &lt;=&gt; "o_" &lt;=&gt; 1,
+		tua.user_name,
+		IF (SUBSTRING(t.user_id, 1, 2) &lt;=&gt; "d-" &lt;=&gt; 1,
+		mdm.doctorName,u.user_name
+		)
+		) AS userName,
+		IF (SUBSTRING(t.user_id, 1, 2) &lt;=&gt; "o_" &lt;=&gt; 1,
+		tua.wx_head_pic,
+		IF (SUBSTRING(t.user_id, 1, 2) &lt;=&gt; "d-" &lt;=&gt; 1,
+		IF(mdm.doctorHeadPic is null,'https://hyxy.oss-cn-beijing.aliyuncs.com/doctor/img/doctor.png',CONCAT('https://hyxy.oss-cn-beijing.aliyuncs.com/doctor/img/',mdm.doctorHeadPic))
+		,IF(u.head_pic is null,'https://hyxy.oss-cn-beijing.aliyuncs.com/doctor/img/patient.png',CONCAT('https://hyxy.oss-cn-beijing.aliyuncs.com/',u.head_pic))
+		)
+		) AS headPic,
+		t.article_id "articleId",
+		t.content "content",
+		date_format(
+		t.create_time,
+		'%Y-%m-%d %H:%i:%s'
+		) "createTime"
+		FROM
+		t_article_report t
+		LEFT JOIN t_user u ON t.user_id = u.id
+		LEFT JOIN t_user_applet tua ON t.user_id = tua.open_id
+		LEFT JOIN hyxy.medicine_doctor_message mdm ON t.user_id = mdm.doctorId
+		WHERE
+		t.article_id = #{articleId}
+		order by t.create_time desc
+		<if test=" start != null and start != '' ">
+			limit ${start},${limit}
+		</if>
+	</select>
+	<insert id="addArticleCollect"  parameterType="hashmap">
+        insert into t_article_collect(user_id,article_id,create_time)values(#{loginUserId},#{articleId},SYSDATE())
+	</insert>
+	<delete id="deleteArticleCollect"  parameterType="hashmap">
+        delete from t_article_collect where user_id=#{loginUserId} and article_id=#{articleId} 
+	</delete>
+
+	<select id="getUserDoLike" parameterType="hashmap" resultType="hashmap">
+		select * from t_article_like where user_id = #{userId} and article_id = #{articleId}
+	</select>
+
+	<select id="getUserDoLikeNum" parameterType="hashmap" resultType="integer">
+		select count(*) num from t_article_like where article_id = #{articleId}
+	</select>
+
+	<select id="addReadNum" parameterType="hashmap">
+		update t_article set read_times = read_times + 1 where id = #{articleId}
+	</select>
+</mapper>
